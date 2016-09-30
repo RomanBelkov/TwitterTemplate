@@ -11,13 +11,15 @@ import twitter4j.conf.ConfigurationBuilder;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-enum RoboAction {Forward, Left, Right, Backward, Stop};
+enum RoboAction {Forward, Left, Right, Backward, Turn, Stop}
 
 public class Program {
-
-    private static volatile HashMap<RoboAction, Integer> ActionFrequencyMap = new HashMap<>(6);
+    private static int initHashCapacity = 8;
+    private static volatile HashMap<RoboAction, Integer> ActionFrequencyMap = new HashMap<>(initHashCapacity);
     private static PowerMotor leftMotor = null;
     private static PowerMotor rightMotor = null;
+
+//    private static String[] rusActions = new String[] {"вперёд", "назад", "влево", "вправо", "разворот"};
 
     private static RoboAction CountStats() {
         Map.Entry<RoboAction, Integer> maxEntry = null;
@@ -41,24 +43,32 @@ public class Program {
         }
     }
 
+    private static void StopMotors() {
+        leftMotor.stop();
+        rightMotor.stop();
+    }
+
     private static void Act(RoboAction action) throws InterruptedException {
         if (action.equals(RoboAction.Forward)) {
-            leftMotor.setPower(100); rightMotor.setPower(100); Thread.sleep(2000); leftMotor.stop(); rightMotor.stop();
+            leftMotor.setPower(100); rightMotor.setPower(100); Thread.sleep(2000); StopMotors();
         }
         else if (action.equals(RoboAction.Left)) {
-            rightMotor.setPower(100); Thread.sleep(1000); rightMotor.stop();
+            rightMotor.setPower(100); Thread.sleep(1000); StopMotors();
         }
         else if (action.equals(RoboAction.Right)) {
-            leftMotor.setPower(100); Thread.sleep(1000); leftMotor.stop();
+            leftMotor.setPower(100); Thread.sleep(1000); StopMotors();
         }
         else if (action.equals(RoboAction.Backward)) {
-            leftMotor.setPower(-100); rightMotor.setPower(-100); Thread.sleep(2000); leftMotor.stop(); rightMotor.stop();
+            leftMotor.setPower(-100); rightMotor.setPower(-100); Thread.sleep(2000); StopMotors();
+        }
+        else if (action.equals(RoboAction.Turn)) {
+            leftMotor.setPower(-100); rightMotor.setPower(100); Thread.sleep(1500); StopMotors();
         }
     }
 
     private static void Subscription() {
 
-        System.out.println("BEFORE");
+//        System.out.println("BEFORE");
 
         for (RoboAction a : RoboAction.values()) {
             System.out.println(ActionFrequencyMap.get(a));
@@ -71,7 +81,7 @@ public class Program {
         }
         FlushValues();
 
-        System.out.println("AFTER");
+//        System.out.println("AFTER");
 
         for (RoboAction a : RoboAction.values()) {
             System.out.println(ActionFrequencyMap.get(a));
@@ -111,14 +121,35 @@ public class Program {
         StatusListener listener = new StatusListener() {
             @Override
             public void onStatus(Status status) {
-                //System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
-                String text = status.getText();
+                String text = status.getText().toLowerCase();
 
-                for (RoboAction a : RoboAction.values()) {
-                    if (text.contains(a.toString())) {
-                        ActionFrequencyMap.put(a, ActionFrequencyMap.get(a) + 1);
+                if (text.contains("red") || text.contains("красный")) {
+                    System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
+
+                    for (RoboAction a : RoboAction.values()) {
+                        if (text.contains(a.toString().toLowerCase())) {
+                            ActionFrequencyMap.put(a, ActionFrequencyMap.get(a) + 1);
+                            return;
+                        }
+                    }
+
+                    if (text.contains("вперёд")) {
+                        ActionFrequencyMap.put(RoboAction.Forward, ActionFrequencyMap.get(RoboAction.Forward) + 1);
+                    } else if (text.contains("назад")) {
+                        ActionFrequencyMap.put(RoboAction.Backward, ActionFrequencyMap.get(RoboAction.Backward) + 1);
+                    } else if (text.contains("влево")) {
+                        ActionFrequencyMap.put(RoboAction.Left, ActionFrequencyMap.get(RoboAction.Left) + 1);
+                    } else if (text.contains("вправо")) {
+                        ActionFrequencyMap.put(RoboAction.Right, ActionFrequencyMap.get(RoboAction.Right) + 1);
+                    } else if (text.contains("разворот")) {
+                        ActionFrequencyMap.put(RoboAction.Turn, ActionFrequencyMap.get(RoboAction.Turn) + 1);
                     }
                 }
+
+//                for (String rus : rusActions) {
+//                    if (text.contains(rus))
+//                }
+
             }
 
             @Override
@@ -146,7 +177,7 @@ public class Program {
 
         //tracking by keywords. Tracking by id can also be added
         FilterQuery fq = new FilterQuery();
-        String keywords[] = {"TRIKtest"};
+        String keywords[] = {"TRIK", "ТРИК"};
 
         fq.track(keywords);
         twitterStream.filter(fq);
